@@ -201,7 +201,7 @@ def main():
     p=argparse.ArgumentParser(description='V3.3 non-trading 5-minute persistent $10 shadow account')
     p.add_argument('--store',default='reports/v21_evidence')
     p.add_argument('--registry',default='reports/v27_mutation_registry.json')
-    p.add_argument('--output-dir',default='reports/v32_cash_account')
+    p.add_argument('--output-dir',default='reports/v33_cash_account')
     a=p.parse_args();r=cycle(a.store,a.registry,a.output_dir)
     print('CQWE_V33_ACCOUNT_PASS '+json.dumps(r,sort_keys=True))
     print('CASH ONLY | PAPER INTENTS | NO EXCHANGE ORDERS | NO PROFIT CLAIM')
