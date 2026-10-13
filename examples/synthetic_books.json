@@ -1,0 +1,9 @@
+{
+  "yes_asks": [{"price": "0.48", "size": "15"}, {"price": "0.49", "size": "20"}],
+  "no_asks": [{"price": "0.50", "size": "15"}, {"price": "0.51", "size": "20"}],
+  "shares": 10,
+  "market_age_ms": 10,
+  "verified_complementary": false,
+  "fee_usd": 0.15,
+  "slippage_buffer_usd": 0.10
+}
