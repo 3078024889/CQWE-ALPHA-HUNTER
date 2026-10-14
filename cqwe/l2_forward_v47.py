@@ -22,7 +22,7 @@ def append_chain(f,seq,prev,session,kind,payload):
     f.write(json.dumps(r,sort_keys=True,ensure_ascii=False,separators=(',',':'))+'\n');f.flush()
     return r['sha256']
 
-def live_forward(symbol='BNBUSDT',seconds=75,root=DATA_ROOT):
+def live_forward(symbol='BNBUSDT',seconds=75,root=DATA_ROOT,models=None,checkpoint_sha256=None):
     if symbol not in SYMBOLS or not 20<=seconds<=600:raise ValueError('BAD_CAPTURE_CONFIG')
     root=Path(root).resolve()
     if root.drive and root.drive.upper()!='D:':raise ValueError('D_DRIVE_REQUIRED')
@@ -46,7 +46,9 @@ def live_forward(symbol='BNBUSDT',seconds=75,root=DATA_ROOT):
             except Exception as e:errors.append(f'WS_DISCONNECTED_{type(e).__name__}');stopped.set();break
     reader=threading.Thread(target=recv,daemon=True);reader.start()
     seq=0;prev='0'*64;started=time.monotonic();applied=0;trade_count=0;last_book_emit=0
-    models=[Dendrite(sp) for sp in specs()]; history=[]; pending=None; settled=0; precommits=0
+    if models is None: models=[Dendrite(sp) for sp in specs()]
+    if len(models)!=6 or [m.spec for m in models]!=specs():raise ValueError('SIX_GENOTYPE_MISMATCH')
+    history=[]; pending=None; settled=0; precommits=0
     # Keep alive on network timeout; never create simulated data from missing events.
     try:
       with path.open('x',encoding='utf8',buffering=1) as f:
@@ -73,7 +75,8 @@ def live_forward(symbol='BNBUSDT',seconds=75,root=DATA_ROOT):
             except SequenceGap:
                 if attempt==2:raise
                 time.sleep(.5)
-        record('START',{'symbol':symbol,'last_update_id':book.update_id,'synced':True})
+        record('START',{'symbol':symbol,'last_update_id':book.update_id,'synced':True,
+                        'initial_memory_checkpoint_sha256':checkpoint_sha256})
         while time.monotonic()-started<seconds:
             if errors:raise RuntimeError(errors[-1])
             try:event,t=incoming.get(timeout=1)
@@ -147,7 +150,7 @@ def live_forward(symbol='BNBUSDT',seconds=75,root=DATA_ROOT):
     records=read_chain(path)
     return {'status':'V43_CAPTURE_COMPLETE','file':str(path),'records':len(records),
       'depth_events_applied':applied,'trades_observed':trade_count,'precommits':precommits,'settled':settled,'unsettled':int(pending is not None),
-      'no_orders':True,'actual_fills_known':False}
+      'no_orders':True,'actual_fills_known':False,'models':models}
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--symbol',choices=SYMBOLS,default='BNBUSDT');p.add_argument('--seconds',type=int,default=75)
