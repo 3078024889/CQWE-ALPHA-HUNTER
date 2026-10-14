@@ -16,15 +16,35 @@ def audit_file(file):
     if not rows or len([r for r in rows if r['kind']=='START'])!=1 or rows[-1]['kind']!='STOP':
         raise ValueError('INCOMPLETE_L2_SESSION')
     if not rows[-1]['payload'].get('synced'):raise ValueError('SESSION_UNSYNCED')
-    prep={};settled=[];expired=[]
+    prep={};settled=[];expired=[];latest_book=None
     for i,row in enumerate(rows):
         kind=row['kind'];data=row['payload']
+        if kind=='BOOK':
+            latest_book=(i,row)
         if kind=='PRECOMMIT':
             ns=data['decision_ns']
             if ns in prep or len(data['genotype_predictions'])!=6 or data['actual_fills']!=0:
                 raise ValueError('INVALID_PRECOMMIT')
             if ns>row['received_ns'] or ns<0:raise ValueError('PRECOMMIT_CLOCK_CONFLICT')
-            if i==0 or rows[i-1]['kind']!='BOOK' or rows[i-1]['received_ns']>ns:raise ValueError('PRECOMMIT_WITHOUT_PRIOR_BOOK')
+            # A settlement/expiry can be appended between the BOOK and the next
+            # PRECOMMIT. The decision must anchor the latest *previous* BOOK,
+            # rather than assume BOOK is the immediately preceding record.
+            if latest_book is None:raise ValueError('PRECOMMIT_WITHOUT_PRIOR_BOOK')
+            book_index,prior_book=latest_book
+            if book_index>=i or prior_book['received_ns']>ns:
+                raise ValueError('PRECOMMIT_WITHOUT_PRIOR_BOOK')
+            recv=prior_book['payload'].get('book_received_ns')
+            anchored=data.get('decision_book_sha256')
+            if anchored is not None:
+                if (not isinstance(anchored,str) or anchored!=prior_book['sha256'] or
+                    type(recv) is not int or recv>prior_book['received_ns'] or
+                    recv>ns or data.get('decision_book_received_ns')!=recv or
+                    data.get('exchange_update_id')!=prior_book['payload'].get('update_id')):
+                    raise ValueError('PRECOMMIT_BOOK_ANCHOR_MISMATCH')
+            elif i-1!=book_index:
+                # Strict backward compatibility; do not silently accept old
+                # unanchored decisions separated from their source BOOK.
+                raise ValueError('PRECOMMIT_WITHOUT_PRIOR_BOOK')
             prep[ns]=(i,data)
         elif kind=='EXPIRED':
             key=data['decision_ns']

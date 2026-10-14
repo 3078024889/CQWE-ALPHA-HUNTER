@@ -128,6 +128,8 @@ def live_forward(symbol='BNBUSDT',seconds=75,root=DATA_ROOT):
                                   'book_imbalance':1 if x[0]>.25 else 0,
                                   'trend_agreement':1 if x[0]>.15 and x[1]>.1 else 0},
                                 'exchange_update_id':book.update_id,
+                                'decision_book_sha256':book_chain_sha,
+                                'decision_book_received_ns':t,
                                 'account_orders':0,'actual_fills':0})
                             pending={'decision_ns':decision_ns,'decision_mid':(float(bid)+float(ask))/2,
                                      'ask':float(ask),'predictions':pred,'features':x}
