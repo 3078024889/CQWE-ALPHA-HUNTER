@@ -78,7 +78,7 @@ def symbol_lock(root,symbol):
 def load(root,symbol):
     folder=_folder(root,symbol)
     files=sorted(folder.glob('checkpoint_*.json'))
-    previous=None;seen=set();last=None
+    previous=None;seen=set();last=None;previous_updates=None
     for index,file in enumerate(files,1):
         if file.name!=f'checkpoint_{index:08d}.json':raise ValueError('CHECKPOINT_SEQUENCE_GAP')
         raw=file.read_bytes()
@@ -94,14 +94,25 @@ def load(root,symbol):
         _verify_state(doc['state'])
         if doc['source_sha256'] in seen:raise ValueError('DUPLICATE_SOURCE_SESSION')
         if type(doc['settled_events']) is not int or doc['settled_events']<1:raise ValueError('UNSETTLED_CHECKPOINT')
+        # Every generation must be traceable to authentic, causally audited market data.
+        # Checking only the newest capture leaves historical lineage vulnerable to corruption.
+        source=Path(doc['source_file'])
+        if not source.is_file() or _sha(source.read_bytes())!=doc['source_sha256']:
+            raise ValueError('HISTORICAL_SOURCE_EVIDENCE_MISSING_OR_CHANGED')
+        verified=audit_file(source)
+        if verified['settled']!=doc['settled_events']:
+            raise ValueError('HISTORICAL_SOURCE_AUDIT_FAILED')
+        from .market_replay_v43 import read_chain
+        rows=read_chain(source)
+        first=next((r for r in rows if r['kind']=='START'),None)
+        if not first or first['payload'].get('symbol')!=symbol or first['payload'].get('initial_memory_checkpoint_sha256')!=doc['previous_sha256']:
+            raise ValueError('HISTORICAL_SESSION_LINEAGE_MISMATCH')
+        total_updates=sum(x['updates'] for x in doc['state'])
+        expected=(previous_updates or 0)+6*doc['settled_events']
+        if total_updates!=expected:
+            raise ValueError('HISTORICAL_MEMORY_UPDATE_COUNT_MISMATCH')
+        previous_updates=total_updates
         seen.add(doc['source_sha256']);previous=_sha(raw);last=doc
-    # Verify the newest raw market source still exists and remains bit-identical.
-    if last:
-        source=Path(last['source_file'])
-        if not source.is_file() or _sha(source.read_bytes())!=last['source_sha256']:
-            raise ValueError('LATEST_SOURCE_EVIDENCE_MISSING_OR_CHANGED')
-        if audit_file(source)['settled']!=last['settled_events']:
-            raise ValueError('LATEST_SOURCE_AUDIT_FAILED')
     return last,previous
 
 def commit(root,symbol,models,source_path,prior_sha,prior_doc):
