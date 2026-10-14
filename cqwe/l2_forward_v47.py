@@ -88,7 +88,8 @@ def live_forward(symbol='BNBUSDT',seconds=75,root=DATA_ROOT):
                         bid=max(book.bids);ask=min(book.asks)
                         record('BOOK',{'symbol':symbol,'synced':True,'update_id':book.update_id,
                             'bid':str(bid),'ask':str(ask),'bid_qty':str(book.bids[bid]),'ask_qty':str(book.asks[ask]),
-                            'book_received_ms':t//1_000_000})
+                            'book_received_ms':t//1_000_000,'book_received_ns':t})
+                        book_chain_sha=prev
                         last_book_emit=time.monotonic()
                         # This callback executes while the capture is streaming; decisions are
                         # committed BEFORE future data arrives, never reconstructed from replay.
@@ -110,6 +111,7 @@ def live_forward(symbol='BNBUSDT',seconds=75,root=DATA_ROOT):
                                 label=1 if move>0 else -1 if move<0 else 0
                                 record('SETTLED',{'decision_ns':entry['decision_ns'],'settled_received_ns':t,
                                     'move_bps':move,'long_cross_proxy_bps':cross,'label':label,
+                                    'settlement_book_sha256':book_chain_sha,'settlement_update_id':book.update_id,
                                     'prediction_ids':list(range(6)),'actual_fills':0,'real_profit_usd':0})
                                 for model,(p,response) in zip(models,entry['predictions']):
                                     model.update(response,label,p,entry['features'])

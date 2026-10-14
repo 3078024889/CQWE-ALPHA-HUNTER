@@ -35,7 +35,25 @@ def audit_file(file):
             key=data['decision_ns']
             if key not in prep or prep[key][0]>=i or data['settled_received_ns']<key+60_000_000_000:
                 raise ValueError('NONCAUSAL_SETTLEMENT')
-            if i==0 or rows[i-1]['kind']!='BOOK' or rows[i-1]['received_ns']>data['settled_received_ns']:
+            if i==0 or rows[i-1]['kind']!='BOOK':
+                raise ValueError('SETTLEMENT_WITHOUT_FUTURE_BOOK')
+            prior_book=rows[i-1]
+            # The BOOK record is appended after its websocket event is received.
+            # Its append clock must NEVER be used as the event receive clock.
+            book_event_ns=prior_book['payload'].get('book_received_ns')
+            if book_event_ns is not None:
+                if (type(book_event_ns) is not int or
+                    book_event_ns!=data['settled_received_ns'] or
+                    book_event_ns>prior_book['received_ns'] or
+                    prior_book['received_ns']>row['received_ns'] or
+                    i-1<=prep[key][0]):
+                    raise ValueError('SETTLEMENT_WITHOUT_FUTURE_BOOK')
+                if (data.get('settlement_book_sha256')!=prior_book['sha256'] or
+                    data.get('settlement_update_id')!=prior_book['payload'].get('update_id')):
+                    raise ValueError('SETTLEMENT_BOOK_ANCHOR_MISMATCH')
+            elif prior_book['received_ns']>data['settled_received_ns']:
+                # Legacy captured sessions: retain prior strict behavior; never
+                # rewrite historical evidence to manufacture valid settlements.
                 raise ValueError('SETTLEMENT_WITHOUT_FUTURE_BOOK')
             if key in expired or key in settled or data['actual_fills']!=0 or data['real_profit_usd']!=0:
                 raise ValueError('INVALID_SETTLEMENT')
