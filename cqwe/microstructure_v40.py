@@ -22,11 +22,12 @@ def _number(x, *, positive=False):
     if not math.isfinite(v) or (positive and v<=0) or (not positive and v<0): raise ValueError('INVALID_NUMERIC_VALUE')
     return v
 
-def analyze(depth,trades,*,symbol,started_ms,ended_ms):
+def analyze(depth,trades,*,symbol,started_ms,ended_ms,excluded_stale_trades=0):
     if symbol not in SYMBOLS:raise ValueError('SYMBOL_NOT_ALLOWED')
     if not isinstance(started_ms,int) or not isinstance(ended_ms,int) or ended_ms<started_ms:raise ValueError('INVALID_OBSERVATION_CLOCK')
     if ended_ms-started_ms>MAX_SNAPSHOT_AGE_MS:raise ValueError('SNAPSHOT_TOO_SLOW')
     if not isinstance(depth,dict) or not isinstance(trades,list):raise ValueError('INVALID_MARKET_PAYLOAD')
+    if not isinstance(excluded_stale_trades,int) or isinstance(excluded_stale_trades,bool) or excluded_stale_trades<0:raise ValueError('INVALID_STALE_TRADE_COUNT')
     def levels(side,reverse):
         raw=depth.get(side)
         if not isinstance(raw,list) or not 1<=len(raw)<=100:raise ValueError('INVALID_BOOK_LEVELS')
@@ -75,10 +76,11 @@ def analyze(depth,trades,*,symbol,started_ms,ended_ms):
         'microprice_displacement_bps':(microprice-mid)/mid*10000,
         'aggressor_buy_notional':buyer,'aggressor_sell_notional':seller,
         'aggressor_imbalance':aggression,'trade_count':len(trades),'latest_trade_ms':last_trade_ms,
+        'excluded_stale_trades':excluded_stale_trades,'trade_payload_count':len(trades)+excluded_stale_trades,
         'book_update_id':depth.get('lastUpdateId'), 'regime':regime,
         'snapshot_start_ms':started_ms,'recorded_at_ms':ended_ms,
         'prediction_horizon_end_ms':ended_ms+HORIZON_MS,
-        'trade_window_completeness':'UNKNOWN_REST_LIMITED',
+        'trade_window_completeness':'STALE_RECORDS_EXCLUDED_REST_LIMITED' if excluded_stale_trades else 'UNKNOWN_REST_LIMITED',
         'queue_fill_known':False,'market_maker_identity_known':False,
         'not_a_trading_signal':True}
 
@@ -97,7 +99,25 @@ def collect_once(symbol='BNBUSDT',fetch=_fetch,clock=lambda:time.time_ns()//1_00
     depth=fetch('depth',{'symbol':symbol,'limit':20})
     trades=fetch('aggTrades',{'symbol':symbol,'limit':100})
     end=clock()
-    return analyze(depth,trades,symbol=symbol,started_ms=start,ended_ms=end)
+    # The public aggTrades endpoint returns the most recent prints, NOT a guaranteed
+    # five-minute sample. Older valid prints are quarantined, never used as current
+    # aggression; malformed or future-dated prints still fail closed in analyze().
+    if not isinstance(trades,list):raise ValueError('INVALID_MARKET_PAYLOAD')
+    if len(trades)>1000:raise ValueError('TOO_MANY_TRADES')
+    fresh=[];old=0
+    for trade in trades:
+        if not isinstance(trade,dict):raise ValueError('BAD_TRADE')
+        tm=trade.get('T')
+        if not isinstance(tm,int) or isinstance(tm,bool):raise ValueError('TRADE_TIMESTAMP_OUT_OF_WINDOW')
+        if tm<end-300000:
+            # Validate excluded rows too; never silently conceal malformed prices.
+            _number(trade.get('p'),positive=True)
+            _number(trade.get('q'),positive=True)
+            if not isinstance(trade.get('m'),bool):raise ValueError('TRADE_SIDE_MISSING')
+            old+=1
+        else:
+            fresh.append(trade)
+    return analyze(depth,fresh,symbol=symbol,started_ms=start,ended_ms=end,excluded_stale_trades=old)
 
 def _verify(record):
     if record.get('sha256')!=_digest({k:v for k,v in record.items() if k!='sha256'}):raise ValueError('MICRO_RECORD_HASH_MISMATCH')
