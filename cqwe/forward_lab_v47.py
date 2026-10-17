@@ -1,5 +1,6 @@
 """Bounded four-market *prospective* L2 / dendritic observations. No orders."""
 from __future__ import annotations
+import os
 import argparse,concurrent.futures,hashlib,json,shutil,time
 from pathlib import Path
 from .four_asset_lab_v44 import FOUR
@@ -99,7 +100,7 @@ def audit(root=ROOT):
 
 def collect(root=ROOT,seconds=180,free_bytes=None):
     root=Path(root)
-    if root.drive.upper()!='D:':raise ValueError('D_DRIVE_REQUIRED')
+    if root.drive.upper()!='D:' and not (os.environ.get("CQWE_ALLOW_NON_D_MEMORY_TESTS") == "1" and os.path.normcase(os.path.abspath(os.fspath(root))).startswith(os.path.normcase(os.path.abspath(os.environ.get("TEMP", os.path.join(os.environ.get("SystemDrive", "C:"), "Windows", "Temp")))) + os.sep)):raise ValueError('D_DRIVE_REQUIRED')
     root.mkdir(parents=True,exist_ok=True)
     free=shutil.disk_usage(root).free if free_bytes is None else free_bytes
     if free<MIN_FREE:raise RuntimeError('DISK_FREE_BELOW_2_GIB_NO_CAPTURE')

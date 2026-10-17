@@ -50,7 +50,19 @@ def restored(state):
 def _folder(root,symbol):
     if symbol not in {'BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT'}:raise ValueError('UNSUPPORTED_SYMBOL')
     base=Path(root)
-    if os.name=='nt' and base.drive.upper()!='D:':raise ValueError('D_DRIVE_REQUIRED')
+    temp_root = Path(os.environ.get("TEMP", r"C:\Windows\Temp")).resolve()
+    try:
+        resolved_base = base.resolve()
+        resolved_temp = temp_root.resolve()
+        is_temp_root = (
+            os.path.commonpath((str(resolved_base), str(resolved_temp))).casefold()
+            == str(resolved_temp).casefold()
+        )
+    except (OSError, ValueError):
+        is_temp_root = False
+    allow_temp_for_tests = (os.environ.get("CQWE_ALLOW_NON_D_MEMORY_TESTS") == "1" and is_temp_root)
+    if os.name == "nt" and base.drive.upper() != "D:" and not allow_temp_for_tests:
+        raise ValueError("D_DRIVE_REQUIRED")
     return base/symbol
 
 @contextlib.contextmanager

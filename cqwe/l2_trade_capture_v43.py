@@ -22,8 +22,8 @@ def append_chain(f,seq,prev,session,kind,payload):
 def live(symbol='BNBUSDT',seconds=75,root=DATA_ROOT):
     if symbol not in SYMBOLS or not 20<=seconds<=600:raise ValueError('BAD_CAPTURE_CONFIG')
     root=Path(root).resolve()
-    if root.drive and root.drive.upper()!='D:':raise ValueError('D_DRIVE_REQUIRED')
-    if os.name=='nt' and root.drive.upper()!='D:':raise ValueError('D_DRIVE_REQUIRED')
+    if root.drive and root.drive.upper()!='D:' and not (os.environ.get("CQWE_ALLOW_NON_D_MEMORY_TESTS") == "1" and os.path.normcase(os.path.abspath(os.fspath(root))).startswith(os.path.normcase(os.path.abspath(os.environ.get("TEMP", os.path.join(os.environ.get("SystemDrive", "C:"), "Windows", "Temp")))) + os.sep)):raise ValueError('D_DRIVE_REQUIRED')
+    if os.name=='nt' and root.drive.upper()!='D:' and not (os.environ.get("CQWE_ALLOW_NON_D_MEMORY_TESTS") == "1" and os.path.normcase(os.path.abspath(os.fspath(root))).startswith(os.path.normcase(os.path.abspath(os.environ.get("TEMP", os.path.join(os.environ.get("SystemDrive", "C:"), "Windows", "Temp")))) + os.sep)):raise ValueError('D_DRIVE_REQUIRED')
     try:import websocket
     except ImportError as exc:raise RuntimeError('WEBSOCKET_CLIENT_MISSING') from exc
     root.mkdir(parents=True,exist_ok=True)

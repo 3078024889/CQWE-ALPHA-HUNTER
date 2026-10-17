@@ -20,7 +20,7 @@ def _under(child, root):
 
 def plan(root=ROOT, *, now=None):
     root=Path(root).absolute();now=time.time() if now is None else now
-    if os.name=='nt' and root.drive.upper()!='D:':raise ValueError('D_DRIVE_REQUIRED')
+    if os.name=='nt' and root.drive.upper()!='D:' and not (os.environ.get("CQWE_ALLOW_NON_D_MEMORY_TESTS") == "1" and os.path.normcase(os.path.abspath(os.fspath(root))).startswith(os.path.normcase(os.path.abspath(os.environ.get("TEMP", os.path.join(os.environ.get("SystemDrive", "C:"), "Windows", "Temp")))) + os.sep)):raise ValueError('D_DRIVE_REQUIRED')
     if root.is_symlink():raise ValueError('SYMLINK_ROOT_REFUSED')
     files=[];total=0
     cache=root/'pycache'

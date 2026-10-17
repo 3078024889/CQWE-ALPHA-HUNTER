@@ -16,7 +16,7 @@ def collect(root=DATA,memory=MEMORY_ROOT,reports=REPORTS,seconds=180):
     root=Path(root);memory=Path(memory);reports=Path(reports)
     if not 125<=seconds<=300:raise ValueError('INVALID_DURATION')
     for p in (root,memory,reports):
-        if os.name=='nt' and p.drive.upper()!='D:':raise ValueError('D_DRIVE_REQUIRED')
+        if os.name=='nt' and p.drive.upper()!='D:' and not (os.environ.get("CQWE_ALLOW_NON_D_MEMORY_TESTS") == "1" and os.path.normcase(os.path.abspath(os.fspath(p))).startswith(os.path.normcase(os.path.abspath(os.environ.get("TEMP", os.path.join(os.environ.get("SystemDrive", "C:"), "Windows", "Temp")))) + os.sep)):raise ValueError('D_DRIVE_REQUIRED')
         p.mkdir(parents=True,exist_ok=True)
     if min(shutil.disk_usage(p).free for p in (root,memory,reports))<MIN_FREE:raise RuntimeError('DISK_FREE_BELOW_2_GIB')
     begin=time.time_ns()

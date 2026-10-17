@@ -1,1 +1,1 @@
-"""CQWE research-only quantitative toolkit."""
+"""CQWE Copernican research package."""

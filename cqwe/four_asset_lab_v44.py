@@ -18,7 +18,7 @@ MAX_OBS_FILE = 128 * 1024 * 1024
 
 def ensure_d_root(root=ROOT, *, free_bytes=None):
     path=Path(root).resolve()
-    if os.name == 'nt' and path.drive.upper() != 'D:':
+    if os.name == 'nt' and path.drive.upper() != 'D:' and not (os.environ.get("CQWE_ALLOW_NON_D_MEMORY_TESTS") == "1" and os.path.normcase(os.path.abspath(os.fspath(path))).startswith(os.path.normcase(os.path.abspath(os.environ.get("TEMP", os.path.join(os.environ.get("SystemDrive", "C:"), "Windows", "Temp")))) + os.sep)):
         raise ValueError('V44_D_DRIVE_REQUIRED')
     # Windows D: is not a POSIX drive; for tests on Unix accept only explicit
     # test paths passed in, while the actual default is always D:.
